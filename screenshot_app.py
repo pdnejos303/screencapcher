@@ -74,10 +74,10 @@ settings = {
     "save_folder": os.path.abspath(os.path.dirname(__file__)),
     "save_filename": f"TestReport_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
     "hk_capture": "shift+s",
-    "hk_major_next": "shift+up",
-    "hk_major_prev": "shift+down",
-    "hk_minor_next": "alt+right",
-    "hk_minor_prev": "alt+left"
+    "hk_major_next": "shift+right",
+    "hk_major_prev": "shift+left",
+    "hk_minor_next": "ctrl+right",
+    "hk_minor_prev": "ctrl+left"
 }
 saved_monitor_num = None
 
