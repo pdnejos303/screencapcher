@@ -448,7 +448,7 @@ def create_overlay():
     ctk.CTkButton(row_major, text="◀ ข้อหลัก", width=70, height=30, command=on_major_prev, fg_color="#444444", hover_color="#555555", font=ctk.CTkFont(weight="bold")).pack(side="left")
     ctk.CTkButton(row_major, text="ข้อหลัก ▶", width=70, height=30, command=on_major_next, fg_color="#444444", hover_color="#555555", font=ctk.CTkFont(weight="bold")).pack(side="right")
     
-    overlay_label_step = ctk.CTkLabel(step_frame, text=f"ข้อ {get_step_label()}", font=ctk.CTkFont(size=36, weight="bold"), text_color="#FFFFFF")
+    overlay_label_step = ctk.CTkLabel(step_frame, text=f"{get_step_label()}", font=ctk.CTkFont(size=36, weight="bold"), text_color="#FFFFFF")
     overlay_label_step.pack(pady=5)
     
     # Minor Controls
@@ -516,7 +516,7 @@ def process_capture():
         sel.Font.Size = 14
         sel.Font.Bold = True
         sel.Font.Color = 0x993300
-        sel.TypeText(f"ข้อ {step}")
+        sel.TypeText(f"{step}")
         sel.Font.Bold = False
         sel.Font.Color = 0
         sel.TypeParagraph()
@@ -570,7 +570,7 @@ def check_events():
     if step_changed_event.is_set():
         step_changed_event.clear()
         if overlay_label_step:
-            overlay_label_step.configure(text=f"ข้อ {get_step_label()}")
+            overlay_label_step.configure(text=f"{get_step_label()}")
 
     if stop_event.is_set():
         try:
