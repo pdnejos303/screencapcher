@@ -122,7 +122,7 @@ def run_setup_ui():
     global setup_done
 
     app = ctk.CTk()
-    app.title("Screenshot Overlay - Setup")
+    app.title("Screenshot Tool - Setup")
     app.geometry("500x550")
     app.minsize(500, 500)
 
@@ -624,7 +624,7 @@ def create_overlay():
     FONT_FAMILY = "Segoe UI"
 
     overlay = ctk.CTk()
-    overlay.title("Screenshot Overlay")
+    overlay.title("Screenshot Tool")
     overlay.geometry("340x350")
 
     # หน้าต่างลอย ไร้ขอบ
