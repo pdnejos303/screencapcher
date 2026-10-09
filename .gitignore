@@ -2,3 +2,4 @@
 dist/
 *.spec
 __pycache__/
+Backup_Images/
