@@ -21,7 +21,10 @@ import win32com.client
 from mss import mss
 from mss.tools import to_png
 from PIL import Image, ImageTk, ImageDraw
-
+try:
+    from fpdf import FPDF
+except ImportError:
+    FPDF = None
 class DummyStream:
     def write(self, *args, **kwargs): pass
     def flush(self, *args, **kwargs): pass
@@ -86,8 +89,7 @@ settings = {
     "use_existing_word": False,
     "existing_word_path": "",
     "export_format": "Word",
-    "backup_images": True,
-    "hk_capture": "shift+s",
+        "hk_capture": "shift+s",
     "hk_capture_region": "shift+d",
     "hk_annotate": "shift+a",
     "hk_major_next": "shift+right",
@@ -101,7 +103,7 @@ if os.path.exists(config_file):
     try:
         with open(config_file, "r", encoding="utf-8") as f:
             loaded = json.load(f)
-            for k in ["save_folder", "hk_capture", "hk_capture_region", "hk_annotate", "hk_major_next", "hk_major_prev", "hk_minor_next", "hk_minor_prev", "use_existing_word", "existing_word_path", "export_format", "backup_images"]:
+            for k in ["save_folder", "hk_capture", "hk_capture_region", "hk_annotate", "hk_major_next", "hk_major_prev", "hk_minor_next", "hk_minor_prev", "use_existing_word", "existing_word_path", "export_format"]:
                 if k in loaded: settings[k] = loaded[k]
             if "save_filename" in loaded and loaded["save_filename"]:
                 settings["save_filename"] = loaded["save_filename"]
@@ -117,12 +119,12 @@ setup_done = False
 # ════════════════════════════════════════════════════════════════
 def run_setup_ui():
     global setup_done
-    
+
     app = ctk.CTk()
     app.title("Screenshot Overlay - Setup")
     app.geometry("1000x550")
     app.minsize(900, 500)
-    
+
     # --- Modern Colors & Fonts ---
     COLOR_BG = "#0B0F19"
     COLOR_CARD = "#1A2235"
@@ -131,7 +133,7 @@ def run_setup_ui():
     COLOR_TEXT = "#FFFFFF"
     COLOR_TEXT_MUTED = "#94A3B8"
     FONT_FAMILY = "Segoe UI"
-    
+
     app.configure(fg_color=COLOR_BG)
 
     app.update_idletasks()
@@ -142,21 +144,21 @@ def run_setup_ui():
     # Header
     header_frame = ctk.CTkFrame(app, fg_color="transparent")
     header_frame.pack(fill="x", padx=40, pady=(30, 20))
-    
+
     title_lbl = ctk.CTkLabel(header_frame, text="Screenshot Automation", font=(FONT_FAMILY, 32, "bold"), text_color=COLOR_TEXT)
     title_lbl.pack(side="left")
-    
+
     subtitle_lbl = ctk.CTkLabel(header_frame, text="ตั้งค่าหน้าจอและปุ่มลัดก่อนเริ่มการทำงาน", font=(FONT_FAMILY, 14), text_color=COLOR_TEXT_MUTED)
     subtitle_lbl.pack(side="left", padx=15, pady=6)
 
     # Footer (fixed at bottom so it never gets cut off)
     bottom_frame = ctk.CTkFrame(app, fg_color="transparent")
     bottom_frame.pack(side="bottom", fill="x", padx=40, pady=(10, 25))
-    
+
     # Main Grid Container (now a Master Scrollable Area)
     main_container = ctk.CTkScrollableFrame(app, fg_color="transparent")
     main_container.pack(side="top", fill="both", expand=True, padx=20, pady=(0, 10))
-    
+
     inner_frame = ctk.CTkFrame(main_container, fg_color="transparent")
     inner_frame.pack(fill="both", expand=True)
 
@@ -169,12 +171,12 @@ def run_setup_ui():
     # --- Section 1: หน้าจอ ---
     frame_mon = ctk.CTkFrame(left_col, corner_radius=16, fg_color=COLOR_CARD, border_width=1, border_color="#2E3C56")
     frame_mon.pack(fill="both", expand=True)
-    
+
     mon_header = ctk.CTkFrame(frame_mon, fg_color="transparent")
     mon_header.pack(fill="x", padx=25, pady=(25, 10))
     ctk.CTkLabel(mon_header, text="🖥️ เลือกหน้าจอ", font=(FONT_FAMILY, 18, "bold"), text_color=COLOR_TEXT).pack(anchor="w")
     ctk.CTkLabel(mon_header, text="ระบุหน้าจอที่ต้องการแคปเจอร์", font=(FONT_FAMILY, 12), text_color=COLOR_TEXT_MUTED).pack(anchor="w")
-    
+
     monitor_scroll = ctk.CTkFrame(frame_mon, fg_color="transparent")
     monitor_scroll.pack(fill="both", expand=True, padx=15, pady=10)
 
@@ -193,10 +195,10 @@ def run_setup_ui():
         tag = "⭐ จอหลัก (Primary)" if m["is_primary"] else f"จอที่ {m['win_num']}"
         res_text = f"{m['width']} x {m['height']}"
         pos_text = f"X: {m['left']}, Y: {m['top']}"
-        
+
         btn_container = ctk.CTkFrame(monitor_scroll, fg_color="transparent")
         btn_container.pack(fill="x", pady=8, padx=10)
-        
+
         btn = ctk.CTkButton(
             btn_container, text=f"{tag}\n{res_text}   |   {pos_text}", 
             corner_radius=12, border_width=2,
@@ -206,7 +208,7 @@ def run_setup_ui():
         )
         btn.pack(fill="x", expand=True)
         monitor_buttons[m['win_num']] = btn
-        
+
     default_mon_num = saved_monitor_num if saved_monitor_num else next((m for m in win_monitor_list if m["is_primary"]), win_monitor_list[0])["win_num"]
     if default_mon_num not in [m["win_num"] for m in win_monitor_list]:
         default_mon_num = win_monitor_list[0]["win_num"]
@@ -215,15 +217,15 @@ def run_setup_ui():
     # --- Section 2: ปลายทางไฟล์ (New/Existing) ---
     frame_file = ctk.CTkFrame(left_col, corner_radius=16, fg_color=COLOR_CARD, border_width=1, border_color="#2E3C56")
     frame_file.pack(fill="x", pady=(15, 0))
-    
+
     file_header = ctk.CTkFrame(frame_file, fg_color="transparent")
     file_header.pack(fill="x", padx=25, pady=(20, 5))
     ctk.CTkLabel(file_header, text="📁 ปลายทางเอกสาร (Word)", font=(FONT_FAMILY, 18, "bold"), text_color=COLOR_TEXT).pack(anchor="w")
     ctk.CTkLabel(file_header, text="เลือกสร้างไฟล์ใหม่ หรือใช้ Template เดิม", font=(FONT_FAMILY, 12), text_color=COLOR_TEXT_MUTED).pack(anchor="w")
-    
-    
 
     
+
+
 
     # New File Frame
     new_file_frame = ctk.CTkFrame(frame_file, fg_color="transparent")
@@ -232,14 +234,14 @@ def run_setup_ui():
     folder_frame.pack(fill="x", pady=5)
     entry_folder = ctk.CTkEntry(folder_frame, height=40, font=(FONT_FAMILY, 13), corner_radius=8, border_color="#2E3C56", fg_color="#0B0F19")
     entry_folder.pack(side="left", fill="x", expand=True, padx=(0, 10))
-    entry_folder.insert(0, settings["save_folder"])
+    entry_folder.insert(0,        settings["save_folder"])
     def browse_folder():
         folder = filedialog.askdirectory(initialdir=settings["save_folder"])
         if folder:
             entry_folder.delete(0, "end")
             entry_folder.insert(0, os.path.abspath(folder))
     ctk.CTkButton(folder_frame, text="Browse", width=100, height=40, corner_radius=8, fg_color="#2E3C56", hover_color="#3B4B68", font=(FONT_FAMILY, 13, "bold"), command=browse_folder).pack(side="left")
-    
+
     file_frame = ctk.CTkFrame(new_file_frame, fg_color="transparent")
     file_frame.pack(fill="x", pady=(5, 10))
     ctk.CTkLabel(file_frame, text="ชื่อไฟล์:", text_color=COLOR_TEXT_MUTED, font=(FONT_FAMILY, 13)).pack(side="left", padx=(0, 10))
@@ -256,22 +258,18 @@ def run_setup_ui():
     seg_btn.pack(side="left")
 
     # Existing File Frame
+
     
-    
-    # Backup Checkbox
-    backup_var = ctk.BooleanVar(value=settings.get("backup_images", True))
-    chk = ctk.CTkCheckBox(frame_file, text="✅ สำรองไฟล์รูปภาพ (.png) ต้นฉบับใน Backup_Images", variable=backup_var, font=(FONT_FAMILY, 13), fg_color=COLOR_ACCENT, hover_color=COLOR_ACCENT_HOVER)
-    chk.pack(anchor="w", padx=25, pady=(5, 20))
 
     # --- Section 3: Hotkeys ---
     frame_hk = ctk.CTkFrame(right_col, corner_radius=16, fg_color=COLOR_CARD, border_width=1, border_color="#2E3C56")
     frame_hk.pack(fill="both", expand=True)
-    
+
     hk_header = ctk.CTkFrame(frame_hk, fg_color="transparent")
     hk_header.pack(fill="x", padx=25, pady=(25, 5))
     ctk.CTkLabel(hk_header, text="⌨️ ตั้งค่าปุ่มลัด (Hotkeys)", font=(FONT_FAMILY, 18, "bold"), text_color=COLOR_TEXT).pack(anchor="w")
     ctk.CTkLabel(hk_header, text="คลิกที่ปุ่มแล้วกดปุ่มบนคีย์บอร์ดที่ต้องการ", font=(FONT_FAMILY, 12), text_color=COLOR_TEXT_MUTED).pack(anchor="w")
-    
+
     hk_scroll = ctk.CTkFrame(frame_hk, fg_color="transparent")
     hk_scroll.pack(fill="both", expand=True, padx=15, pady=5)
 
@@ -279,15 +277,15 @@ def run_setup_ui():
         row = ctk.CTkFrame(parent, fg_color="transparent")
         row.pack(fill="x", padx=10, pady=8)
         ctk.CTkLabel(row, text=label_text, width=170, anchor="w", font=(FONT_FAMILY, 14)).pack(side="left")
-        
+
         btn_hk = ctk.CTkButton(row, text=str(settings[key_name]).upper(), width=160, height=35, corner_radius=8, 
                                fg_color="#222D44", border_width=1, border_color="#2E3C56", hover_color="#3B4B68", font=(FONT_FAMILY, 13, "bold"))
         btn_hk.pack(side="right")
-        
+
         def listen_hotkey():
             btn_hk.configure(text="Listening...", fg_color="#EAB308", text_color="#000000", border_color="#EAB308")
             app.update()
-            
+
             def hotkey_thread():
                 try:
                     hk = keyboard.read_hotkey(suppress=False)
@@ -313,31 +311,88 @@ def run_setup_ui():
     btn_hk_min_prev = create_hk_row(hk_scroll, "⬅️ ข้อย่อยก่อนหน้า (-0.1)", "hk_minor_prev")
 
     # --- Start Button ---
-    def on_start():
-        global setup_done
+    def save_settings():
         mon_num = selected_monitor_num.get()
-        settings["monitor"] = next(m for m in win_monitor_list if m["win_num"] == mon_num)
-        
-        settings["use_existing_word"] = False
-        settings["existing_word_path"] = ""
-        settings["backup_images"] = backup_var.get()
+        settings["monitor_num"] = mon_num
         settings["save_folder"] = entry_folder.get()
-        
         fmt = export_format_var.get()
         settings["export_format"] = fmt
-        
+
         filename = entry_filename.get()
         if filename.endswith(".docx") or filename.endswith(".pdf"):
             filename = filename[:-5] if filename.endswith(".docx") else filename[:-4]
-            
+
         if fmt == "Word":
             filename += ".docx"
         else:
             filename += ".pdf"
             settings["use_existing_word"] = False
-            
+
+        settings["save_filename"] = filename
+
+        try:
+            with open(config_file, "w", encoding="utf-8") as f:
+                save_data = {
+                    "monitor_num": mon_num,
+                    "save_folder": settings["save_folder"],
+                    "save_filename": settings["save_filename"],
+                    "use_existing_word": settings.get("use_existing_word", False),
+                    "existing_word_path": settings.get("existing_word_path", ""),
+                    "export_format": settings["export_format"],
+                    "hk_capture": settings["hk_capture"],
+                    "hk_capture_region": settings["hk_capture_region"],
+                    "hk_annotate": settings.get("hk_annotate", "shift+a"),
+                    "hk_major_next": settings["hk_major_next"],
+                    "hk_major_prev": settings["hk_major_prev"],
+                    "hk_minor_next": settings["hk_minor_next"],
+                    "hk_minor_prev": settings["hk_minor_prev"]
+                }
+                json.dump(save_data, f, ensure_ascii=False, indent=4)
+            messagebox.showinfo("Success", "บันทึกการตั้งค่าสำเร็จ!")
+        except Exception as e:
+            messagebox.showerror("Error", f"ไม่สามารถบันทึกการตั้งค่าได้:\n{e}")
+
+    def reset_defaults():
+        if messagebox.askyesno("ยืนยัน", "ต้องการคืนค่าเริ่มต้นทั้งหมดหรือไม่?"):
+            try:
+                if os.path.exists(config_file):
+                    os.remove(config_file)
+                import sys
+                os.startfile(sys.executable if not getattr(sys, 'frozen', False) else sys.argv[0])
+                os._exit(0)
+            except Exception as e:
+                messagebox.showerror("Error", f"ไม่สามารถคืนค่าเริ่มต้นได้:\n{e}")
+
+    def on_start():
+        global setup_done
+        mon_num = selected_monitor_num.get()
+        settings["monitor"] = next(m for m in win_monitor_list if m["win_num"] == mon_num)
+
+        settings["use_existing_word"] = False
+        settings["existing_word_path"] = ""
+        settings["save_folder"] = entry_folder.get()
+
+        fmt = export_format_var.get()
+        settings["export_format"] = fmt
+
+        filename = entry_filename.get()
+        if filename.endswith(".docx") or filename.endswith(".pdf"):
+            filename = filename[:-5] if filename.endswith(".docx") else filename[:-4]
+
+        if fmt == "Word":
+            filename += ".docx"
+        else:
+            filename += ".pdf"
+            settings["use_existing_word"] = False
+
         settings["save_filename"] = filename
         
+        if fmt == "Word":
+            ans = messagebox.askyesno("เปิดหน้าต่าง Word", "ต้องการเปิดหน้าต่าง Word ให้เห็นขณะทำงานหรือไม่?\n\n(หากตอบ No โปรแกรมจะบันทึกรูปลง Word แบบซ่อนอยู่เบื้องหลัง)")
+            settings["show_word_window"] = ans
+        else:
+            settings["show_word_window"] = False
+
         setup_done = True
         try:
             with open(config_file, "w", encoding="utf-8") as f:
@@ -346,9 +401,8 @@ def run_setup_ui():
                     "save_folder": settings["save_folder"],
                     "save_filename": settings["save_filename"],
                     "use_existing_word": settings["use_existing_word"],
-                    "existing_word_path": settings["existing_word_path"],
+                    "existing_word_path": settings.get("existing_word_path", ""),
                     "export_format": settings["export_format"],
-                    "backup_images": settings["backup_images"],
                     "hk_capture": settings["hk_capture"],
                     "hk_capture_region": settings["hk_capture_region"],
                     "hk_annotate": settings.get("hk_annotate", "shift+a"),
@@ -361,8 +415,14 @@ def run_setup_ui():
         except: pass
         app.destroy()
 
-    btn_start = ctk.CTkButton(bottom_frame, text="🚀 เปิด Overlay เริ่มทำงาน", font=(FONT_FAMILY, 22, "bold"), height=65, corner_radius=15, fg_color="#10B981", hover_color="#059669", text_color="#FFFFFF", command=on_start)
-    btn_start.pack(fill="x", expand=True)
+    btn_reset = ctk.CTkButton(bottom_frame, text="🔄 คืนค่าเริ่มต้น", font=(FONT_FAMILY, 18, "bold"), height=55, corner_radius=12, fg_color="#EF4444", hover_color="#DC2626", text_color="#FFFFFF", command=reset_defaults)
+    btn_reset.pack(side="left", padx=(0, 5))
+
+    btn_save = ctk.CTkButton(bottom_frame, text="💾 บันทึกการตั้งค่า", font=(FONT_FAMILY, 18, "bold"), height=55, corner_radius=12, fg_color="#3B82F6", hover_color="#2563EB", text_color="#FFFFFF", command=save_settings)
+    btn_save.pack(side="left", padx=5)
+
+    btn_start = ctk.CTkButton(bottom_frame, text="🚀 เปิด Overlay เริ่มทำงาน", font=(FONT_FAMILY, 18, "bold"), height=55, corner_radius=12, fg_color="#10B981", hover_color="#059669", text_color="#FFFFFF", command=on_start)
+    btn_start.pack(side="right", fill="x", expand=True, padx=(5, 0))
 
     app.mainloop()
 
@@ -381,8 +441,8 @@ capture_history_pdf = []
 if settings.get("export_format", "Word") == "Word":
     try:
         word = win32com.client.Dispatch("Word.Application")
-        word.Visible = True
-        
+        word.Visible = settings.get("show_word_window", True)
+
         if settings.get("use_existing_word") and os.path.exists(settings.get("existing_word_path", "")):
             doc = word.Documents.Open(settings["existing_word_path"])
             sel = word.Selection
@@ -475,87 +535,127 @@ def create_overlay():
     overlay = ctk.CTk()
     overlay.title("Screenshot Overlay")
     overlay.geometry("340x350")
-    
+
     # หน้าต่างลอย ไร้ขอบ
     overlay.attributes("-topmost", True)
     overlay.overrideredirect(True)
     overlay.attributes("-alpha", 1.0)
     # Remove pywinstyles to ensure no weird transparent artifacts
     overlay.configure(fg_color=COLOR_BG)
-    
+
     # Outer Frame
     main_frame = ctk.CTkFrame(overlay, corner_radius=16, border_width=1, border_color="#2E3C56", fg_color=COLOR_CARD)
     main_frame.pack(fill="both", expand=True, padx=2, pady=2)
-    
+
     # ═══ Drag Bar ═══
     drag_bar = ctk.CTkFrame(main_frame, height=36, corner_radius=14, fg_color="transparent")
     drag_bar.pack(fill="x", padx=8, pady=8)
-    
+
     # Gripper icon / indicator
     gripper = ctk.CTkLabel(drag_bar, text="•••", font=(FONT_FAMILY, 14, "bold"), text_color=COLOR_TEXT_MUTED)
     gripper.pack(side="left", padx=15)
-    
+
     lbl_title = ctk.CTkLabel(drag_bar, text="Toolbox", font=(FONT_FAMILY, 13, "bold"), text_color=COLOR_TEXT)
     lbl_title.pack(side="left")
-    
+
     def on_drag_start(event):
         overlay._drag_start_x = event.x_root
         overlay._drag_start_y = event.y_root
         overlay._window_start_x = overlay.winfo_x()
         overlay._window_start_y = overlay.winfo_y()
-        
+
     def on_drag_motion(event):
         dx = event.x_root - overlay._drag_start_x
         dy = event.y_root - overlay._drag_start_y
         x = overlay._window_start_x + dx
         y = overlay._window_start_y + dy
         overlay.geometry(f"+{x}+{y}")
-        
+
     drag_bar.bind("<Button-1>", on_drag_start)
     drag_bar.bind("<B1-Motion>", on_drag_motion)
     gripper.bind("<Button-1>", on_drag_start)
     gripper.bind("<B1-Motion>", on_drag_motion)
     lbl_title.bind("<Button-1>", on_drag_start)
     lbl_title.bind("<B1-Motion>", on_drag_motion)
-    
+
     def ui_close():
         import os
         os._exit(0)
-        
+
     btn_close = ctk.CTkButton(drag_bar, text="✕", width=30, height=30, corner_radius=8, fg_color="transparent", hover_color="#EF4444", text_color=COLOR_TEXT_MUTED, font=(FONT_FAMILY, 14, "bold"), command=ui_close)
     btn_close.pack(side="right", padx=5)
-    
-    is_minimized = False
+
+    def set_appwindow(root):
+        try:
+            import ctypes
+            hwnd = ctypes.windll.user32.GetParent(root.winfo_id())
+            style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)
+            style = style & ~0x00000080
+            style = style | 0x00040000
+            ctypes.windll.user32.SetWindowLongW(hwnd, -20, style)
+        except:
+            pass
+
     def toggle_minimize():
-        nonlocal is_minimized
-        if not is_minimized:
-            step_frame.pack_forget()
-            entry_detail.pack_forget()
-            action_frame.pack_forget()
-            status_frame.pack_forget()
-            overlay.geometry("340x55")
-            btn_minimize.configure(text="⬜")
-            is_minimized = True
-        else:
-            step_frame.pack(fill="x", padx=20, pady=(5, 15))
-            entry_detail.pack(fill="x", padx=20, pady=(0, 15))
-            action_frame.pack(fill="x", padx=20)
-            status_frame.pack(fill="x", padx=20, pady=(15, 10))
-            overlay.geometry("340x350")
-            btn_minimize.configure(text="—")
-            is_minimized = False
-            
+        overlay.withdraw()
+        overlay.overrideredirect(False)
+        overlay.iconify()
+
+    def on_map(event):
+        if event.widget == overlay and overlay.state() == 'normal':
+            overlay.overrideredirect(True)
+            set_appwindow(overlay)
+            overlay.attributes("-topmost", True)
+
+    overlay.bind('<Map>', on_map)
+    overlay.after(100, lambda: set_appwindow(overlay))
+
     btn_minimize = ctk.CTkButton(drag_bar, text="—", width=30, height=30, corner_radius=8, fg_color="transparent", hover_color="#3B4B68", text_color=COLOR_TEXT_MUTED, font=(FONT_FAMILY, 14, "bold"), command=toggle_minimize)
     btn_minimize.pack(side="right", padx=5)
-    
+
+    def show_settings():
+        hk_win = ctk.CTkToplevel(overlay)
+        hk_win.title("ตั้งค่าปุ่มลัด (Hotkeys)")
+        hk_win.geometry("350x450")
+        hk_win.attributes("-topmost", True)
+        
+        ctk.CTkLabel(hk_win, text="ปุ่มลัดปัจจุบัน (Hotkeys)", font=(FONT_FAMILY, 18, "bold")).pack(pady=(20, 10))
+        
+        hk_list = [
+            ("📸 แคปหน้าจอ (เต็มจอ)", settings.get("hk_capture")),
+            ("✂️ แคป (เลือกพื้นที่)", settings.get("hk_capture_region")),
+            ("✏️ แคป (วาด/วง)", settings.get("hk_annotate")),
+            ("⬆️ ข้อหลักถัดไป", settings.get("hk_major_next")),
+            ("⬇️ ข้อหลักก่อนหน้า", settings.get("hk_major_prev")),
+            ("➡️ ข้อย่อยถัดไป", settings.get("hk_minor_next")),
+            ("⬅️ ข้อย่อยก่อนหน้า", settings.get("hk_minor_prev")),
+        ]
+        
+        for label, hk in hk_list:
+            row = ctk.CTkFrame(hk_win, fg_color="transparent")
+            row.pack(fill="x", padx=20, pady=5)
+            ctk.CTkLabel(row, text=label, anchor="w", font=(FONT_FAMILY, 14)).pack(side="left")
+            ctk.CTkLabel(row, text=str(hk).upper(), font=(FONT_FAMILY, 12, "bold"), text_color="#3B82F6").pack(side="right")
+            
+        def restart_app():
+            import sys
+            import os
+            os.startfile(sys.executable if getattr(sys, 'frozen', False) else sys.argv[0])
+            os._exit(0)
+            
+        ctk.CTkButton(hk_win, text="รีสตาร์ทแอปเพื่อเปลี่ยนปุ่มลัด", font=(FONT_FAMILY, 14, "bold"), fg_color="#EF4444", hover_color="#DC2626", command=restart_app).pack(pady=(25, 10))
+
+    btn_settings = ctk.CTkButton(drag_bar, text="⚙️", width=30, height=30, corner_radius=8, fg_color="transparent", hover_color="#3B4B68", text_color=COLOR_TEXT_MUTED, font=(FONT_FAMILY, 14, "bold"), command=show_settings)
+    btn_settings.pack(side="right", padx=5)
+
     # ═══ Step Display & Controls ═══
     step_frame = ctk.CTkFrame(main_frame, fg_color="#0B0F19", corner_radius=12)
     step_frame.pack(fill="x", padx=20, pady=(5, 15))
-    
+
     # Control Row
     ctrl_row = ctk.CTkFrame(step_frame, fg_color="transparent")
     ctrl_row.pack(fill="x", padx=15, pady=15)
-    
+
     # Major Controls (Left)
     maj_frame = ctk.CTkFrame(ctrl_row, fg_color="transparent")
     maj_frame.pack(side="left")
@@ -564,7 +664,7 @@ def create_overlay():
     maj_btn_frame.pack()
     ctk.CTkButton(maj_btn_frame, text="−", width=30, height=30, corner_radius=6, command=prev_major, fg_color="#222D44", hover_color="#2E3C56", text_color=COLOR_TEXT).pack(side="left", padx=2)
     ctk.CTkButton(maj_btn_frame, text="+", width=30, height=30, corner_radius=6, command=next_major, fg_color="#222D44", hover_color="#2E3C56", text_color=COLOR_TEXT).pack(side="left", padx=2)
-    
+
     # Step Number (Center)
     overlay_entry_step = ctk.CTkEntry(
         ctrl_row, 
@@ -576,7 +676,7 @@ def create_overlay():
     )
     overlay_entry_step.insert(0, "1.1")
     overlay_entry_step.pack(side="left", expand=True, fill="x")
-    
+
     # Minor Controls (Right)
     min_frame = ctk.CTkFrame(ctrl_row, fg_color="transparent")
     min_frame.pack(side="right")
@@ -585,31 +685,31 @@ def create_overlay():
     min_btn_frame.pack()
     ctk.CTkButton(min_btn_frame, text="−", width=30, height=30, corner_radius=6, command=prev_minor, fg_color="#222D44", hover_color="#2E3C56", text_color=COLOR_TEXT).pack(side="left", padx=2)
     ctk.CTkButton(min_btn_frame, text="+", width=30, height=30, corner_radius=6, command=next_minor, fg_color="#222D44", hover_color="#2E3C56", text_color=COLOR_TEXT).pack(side="left", padx=2)
-    
+
     # ═══ Detail Input ═══
     entry_detail = ctk.CTkEntry(main_frame, placeholder_text="พิมพ์รายละเอียดเพิ่มเติม (Optional)...", height=40, font=(FONT_FAMILY, 13), corner_radius=10, fg_color="#0B0F19", border_color="#2E3C56", text_color=COLOR_TEXT)
     entry_detail.pack(fill="x", padx=20, pady=(0, 15))
-    
+
     # ═══ Action Buttons ═══
     action_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
     action_frame.pack(fill="x", padx=20)
-    
+
     def on_btn_capture(): on_capture()
     def on_btn_snip(): capture_region_event.set()
-    
+
     btn_cap = ctk.CTkButton(action_frame, text="📸 แคปเต็มจอ", height=45, corner_radius=12, font=(FONT_FAMILY, 15, "bold"), fg_color=COLOR_ACCENT, hover_color=COLOR_ACCENT_HOVER, command=on_btn_capture)
     btn_cap.pack(side="left", fill="x", expand=True, padx=(0, 5))
-    
+
     btn_snip = ctk.CTkButton(action_frame, text="✂️ เลือกพื้นที่", height=45, corner_radius=12, font=(FONT_FAMILY, 15, "bold"), fg_color="#0078D7", hover_color="#005A9E", command=on_btn_snip)
     btn_snip.pack(side="right", fill="x", expand=True, padx=(5, 0))
 
     # ═══ Status Info ═══
     status_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
     status_frame.pack(fill="x", padx=20, pady=(15, 10))
-    
+
     info_text = f"Shortcut: {str(settings['hk_capture']).upper()}"
     ctk.CTkLabel(status_frame, text=info_text, font=(FONT_FAMILY, 11), text_color=COLOR_TEXT_MUTED).pack(side="left")
-    
+
     label_count = ctk.CTkLabel(status_frame, text="แคปแล้ว: 0", font=(FONT_FAMILY, 12, "bold"), text_color=COLOR_ACCENT)
     label_count.pack(side="right")
 
@@ -631,45 +731,47 @@ def update_count(count):
 # ════════════════════════════════════════════════════════════════
 
 def build_pdf():
+    if FPDF is None:
+        messagebox.showerror("Error", "ไม่พบโมดูล fpdf ไม่สามารถสร้าง PDF ได้")
+        return
     try:
-        from fpdf import FPDF
         pdf = FPDF()
         font_path = r"C:\Windows\Fonts\tahoma.ttf"
         has_thai_font = os.path.exists(font_path)
         if has_thai_font:
             pdf.add_font("Tahoma", "", font_path)
-            
+
         for cap in capture_history_pdf:
             pdf.add_page()
             if has_thai_font: pdf.set_font("Tahoma", "", 14)
             else: pdf.set_font("Arial", "", 14)
-            
+
             pdf.set_text_color(153, 51, 0)
             pdf.cell(200, 10, text=str(cap['step']), new_x="LMARGIN", new_y="NEXT")
-            
+
             if cap['detail']:
                 pdf.set_text_color(102, 102, 102)
                 if has_thai_font: pdf.set_font("Tahoma", "", 11)
                 else: pdf.set_font("Arial", "", 11)
                 pdf.cell(200, 8, text=f"  {cap['detail']}", new_x="LMARGIN", new_y="NEXT")
-                
+
             pdf.set_text_color(153, 153, 153)
             if has_thai_font: pdf.set_font("Tahoma", "", 9)
             else: pdf.set_font("Arial", "", 9)
             pdf.cell(200, 6, text=f"  Captured at: {cap['timestamp']}", new_x="LMARGIN", new_y="NEXT")
-            
+
             pdf.ln(5)
-            
+
             with Image.open(cap["image"]) as img:
                 w, h = img.size
             max_w = 190
             max_h = 240
             ratio = min(max_w / w, max_h / h)
             pdf.image(cap['image'], w=w*ratio, h=h*ratio)
-            
+
         pdf.output(full_save_path)
     except Exception as e:
-        print("PDF Error:", e)
+        messagebox.showerror("PDF Error", f"เกิดข้อผิดพลาดในการสร้าง PDF:\n{e}")
 
 def process_capture(region=None, custom_image_path=None):
     global capture_count
@@ -687,17 +789,9 @@ def process_capture(region=None, custom_image_path=None):
         target_region = region if region else monitor_to_capture
         sct_img = sct.grab(target_region)
         to_png(sct_img.rgb, sct_img.size, output=filename)
-    
-    if settings.get("backup_images", False):
-        try:
-            backup_dir = os.path.join(settings["save_folder"], "Backup_Images")
-            os.makedirs(backup_dir, exist_ok=True)
-            b_filename = os.path.join(backup_dir, f"Step_{step}_{capture_count}.png")
-            shutil.copy(filename, b_filename)
-        except: pass
 
     is_pdf = settings.get("export_format", "Word") == "PDF"
-    
+
     # Visual Feedback
     def show_flash():
         if overlay:
@@ -720,95 +814,67 @@ def process_capture(region=None, custom_image_path=None):
             flash.after(50, fade_out, 0.3)
 
     if is_pdf:
-        # Save for PDF
-        img_path = filename
-        if settings.get("backup_images", False):
-            img_path = os.path.join(settings["save_folder"], "Backup_Images", f"Step_{step}_{capture_count}.png")
-        else:
-            pdf_temp_dir = os.path.join(current_dir, "_pdf_temp_images")
-            os.makedirs(pdf_temp_dir, exist_ok=True)
-            img_path = os.path.join(pdf_temp_dir, f"temp_pdf_{capture_count}.png")
-            import shutil
-            shutil.copy(filename, img_path)
-            
         capture_history_pdf.append({
-            "step": step,
-            "detail": detail,
-            "timestamp": timestamp,
-            "image": img_path
+            'step': step,
+            'detail': detail,
+            'timestamp': timestamp,
+            'image': filename
         })
         build_pdf()
-        update_count(capture_count)
-        show_flash()
-        if entry_detail:
-            entry_detail.delete(0, "end")
-        try: os.remove(filename)
-        except: pass
     else:
-        # Word Logic
-        try:
-            sel = word.Selection
-            sel.EndKey(Unit=6)
-            sel.TypeParagraph()
-            sel.Font.Size = 14
-            sel.Font.Bold = True
-            sel.Font.Color = 0x993300
-            sel.TypeText(f"{step}")
-            sel.Font.Bold = False
-            sel.Font.Color = 0
-            sel.TypeParagraph()
-            if detail:
-                sel.Font.Size = 11
-                sel.Font.Italic = True
-                sel.Font.Color = 0x666666
-                sel.TypeText(f"  {detail}")
-                sel.Font.Italic = False
-                sel.Font.Color = 0
+        if word is not None and doc is not None:
+            try:
+                sel = word.Selection
+                sel.EndKey(Unit=6) # wdStory
                 sel.TypeParagraph()
-            sel.Font.Size = 9
-            sel.Font.Color = 0x999999
-            sel.TypeText(f"  Captured at: {timestamp}")
-            sel.Font.Color = 0
-            sel.TypeParagraph()
-            shape = sel.InlineShapes.AddPicture(FileName=filename, LinkToFile=False, SaveWithDocument=True)
-            if shape.Width > 450:
-                ratio = 450 / shape.Width
-                shape.Width = 450
-                shape.Height = int(shape.Height * ratio)
-            sel.TypeParagraph()
-            sel.Font.Size = 8
-            sel.Font.Color = 0xCCCCCC
-            sel.TypeText("─" * 25)
-            sel.Font.Color = 0
-            sel.TypeParagraph()
-            doc.Save()
-            update_count(capture_count)
-            show_flash()
-            if entry_detail:
-                entry_detail.delete(0, "end")
-        except Exception as e:
-            pass
-        try: os.remove(filename)
-        except: pass
-
+                
+                # Write step number
+                sel.Font.Size = 14
+                sel.Font.Bold = True
+                sel.Font.Color = 0x0000FF # Red in BGR
+                sel.TypeText(str(step) + "\n")
+                
+                # Write detail
+                if detail:
+                    sel.Font.Size = 11
+                    sel.Font.Bold = False
+                    sel.Font.Color = 0x666666 # Gray
+                    sel.TypeText("  " + detail + "\n")
+                
+                # Write timestamp
+                sel.Font.Size = 9
+                sel.Font.Bold = False
+                sel.Font.Color = 0x999999 # Light gray
+                sel.TypeText("  Captured at: " + str(timestamp) + "\n")
+                
+                # Insert image
+                sel.InlineShapes.AddPicture(FileName=filename, LinkToFile=False, SaveWithDocument=True)
+                sel.TypeParagraph()
+                doc.Save()
+            except Exception as e:
+                print(f"Error saving to Word: {e}")
+                
+    update_step_value(minor_diff=1)
+    update_count(capture_count)
+    show_flash()
 
 def start_snip():
     global snip_active
     if snip_active: return
     snip_active = True
-    
+
     mon = settings["monitor"]
-    
+
     snip_win = tk.Toplevel(overlay)
     snip_win.attributes("-topmost", True)
     snip_win.overrideredirect(True)
     snip_win.geometry(f"{mon['width']}x{mon['height']}+{mon['left']}+{mon['top']}")
     snip_win.attributes("-alpha", 0.3)
     snip_win.config(cursor="crosshair")
-    
+
     canvas = tk.Canvas(snip_win, bg="black", highlightthickness=0)
     canvas.pack(fill="both", expand=True)
-    
+
     rect_id = None
     start_x = 0
     start_y = 0
@@ -817,20 +883,20 @@ def start_snip():
         nonlocal start_x, start_y, rect_id
         start_x, start_y = e.x, e.y
         rect_id = canvas.create_rectangle(start_x, start_y, 1, 1, outline='white', width=2, fill="gray")
-        
+
     def on_drag(e):
         if rect_id:
             canvas.coords(rect_id, start_x, start_y, e.x, e.y)
-            
+
     def on_release(e):
         global snip_active, snip_region
         end_x, end_y = e.x, e.y
         snip_win.destroy()
         snip_active = False
-        
+
         x1, x2 = min(start_x, end_x), max(start_x, end_x)
         y1, y2 = min(start_y, end_y), max(start_y, end_y)
-        
+
         if x2 - x1 > 10 and y2 - y1 > 10:
             snip_region = {
                 "left": mon["left"] + x1,
@@ -844,7 +910,7 @@ def start_snip():
     canvas.bind("<B1-Motion>", on_drag)
     canvas.bind("<ButtonRelease-1>", on_release)
     snip_win.bind("<Escape>", lambda e: [snip_win.destroy(), globals().update(snip_active=False)])
-    
+
     snip_win.focus_force()
 
 
@@ -852,33 +918,33 @@ def start_annotate():
     global annotate_active, custom_annotate_path
     if annotate_active: return
     annotate_active = True
-    
+
     mon = settings["monitor"]
     filename = os.path.join(current_dir, f"_temp_annotate.png")
     sct_img = sct.grab(mon)
     to_png(sct_img.rgb, sct_img.size, output=filename)
-    
+
     anno_win = tk.Toplevel(overlay)
     anno_win.attributes("-topmost", True)
     anno_win.overrideredirect(True)
     anno_win.geometry(f"{mon['width']}x{mon['height']}+{mon['left']}+{mon['top']}")
-    
+
     bg_img = Image.open(filename)
     bg_photo = ImageTk.PhotoImage(bg_img)
     draw_img = bg_img.copy()
     draw_obj = ImageDraw.Draw(draw_img)
-    
+
     canvas = tk.Canvas(anno_win, bg="black", highlightthickness=0, cursor="pencil")
     canvas.pack(fill="both", expand=True)
     canvas.create_image(0, 0, image=bg_photo, anchor="nw")
     canvas.image = bg_photo
-    
+
     draw_data = []
-    
+
     def on_press(e):
         draw_data.clear()
         draw_data.append((e.x, e.y))
-        
+
     def on_drag(e):
         if draw_data:
             x1, y1 = draw_data[-1]
@@ -886,7 +952,7 @@ def start_annotate():
             canvas.create_line(x1, y1, x2, y2, fill="red", width=4, capstyle=tk.ROUND, smooth=True)
             draw_obj.line([x1, y1, x2, y2], fill="red", width=4)
             draw_data.append((x2, y2))
-            
+
     def on_done(e):
         global annotate_active, custom_annotate_path
         draw_img.save(filename)
@@ -894,22 +960,22 @@ def start_annotate():
         annotate_active = False
         custom_annotate_path = filename
         capture_event.set()
-        
+
     def on_cancel(e):
         global annotate_active
         anno_win.destroy()
         annotate_active = False
         try: os.remove(filename)
         except: pass
-        
+
     canvas.bind("<ButtonPress-1>", on_press)
     canvas.bind("<B1-Motion>", on_drag)
     anno_win.bind("<Return>", on_done)
     anno_win.bind("<Escape>", on_cancel)
-    
+
     lbl = tk.Label(anno_win, text="✏️ โหมดวาดเขียน: วาดบนหน้าจอ กด [Enter] เพื่อเซฟ หรือ กด [Esc] เพื่อยกเลิก", bg="#FBBF24", fg="black", font=("Segoe UI", 12, "bold"), padx=10, pady=5)
     lbl.place(x=20, y=20)
-    
+
     anno_win.focus_force()
 
 def update_step_value(major_diff=0, minor_diff=0):
@@ -936,43 +1002,46 @@ def update_step_value(major_diff=0, minor_diff=0):
             new_val = f"{prefix}{new_num:0{len(num_str)}d}"
         else:
             new_val = current
-            
+
     overlay_entry_step.delete(0, "end")
     overlay_entry_step.insert(0, new_val)
 
 def check_events():
-    while not step_queue.empty():
-        action, diff = step_queue.get()
-        if action == 'major': update_step_value(major_diff=diff)
-        elif action == 'minor': update_step_value(minor_diff=diff)
+    try:
+        while not step_queue.empty():
+            action, diff = step_queue.get()
+            if action == 'major': update_step_value(major_diff=diff)
+            elif action == 'minor': update_step_value(minor_diff=diff)
 
-    if stop_event.is_set():
-        try:
-            overlay.quit()
-            overlay.destroy()
-        except: pass
-        os._exit(0)
-        return
+        if stop_event.is_set():
+            try:
+                overlay.quit()
+                overlay.destroy()
+            except: pass
+            os._exit(0)
+            return
 
-    if 'capture_region_event' in globals() and capture_region_event.is_set():
-        capture_region_event.clear()
-        start_snip()
+        if 'capture_region_event' in globals() and capture_region_event.is_set():
+            capture_region_event.clear()
+            start_snip()
 
-    if 'capture_annotate_event' in globals() and capture_annotate_event.is_set():
-        capture_annotate_event.clear()
-        start_annotate()
+        if 'capture_annotate_event' in globals() and capture_annotate_event.is_set():
+            capture_annotate_event.clear()
+            start_annotate()
 
-    if capture_event.is_set():
-        capture_event.clear()
-        region = globals().get('snip_region', None)
-        c_path = globals().get('custom_annotate_path', None)
-        process_capture(region=region, custom_image_path=c_path)
-        if 'snip_region' in globals(): globals()['snip_region'] = None
-        if 'custom_annotate_path' in globals(): globals()['custom_annotate_path'] = None
-        if 'snip_region' in globals():
-            globals()['snip_region'] = None
-
-    overlay.after(100, check_events)
+        if capture_event.is_set():
+            capture_event.clear()
+            region = globals().get('snip_region', None)
+            c_path = globals().get('custom_annotate_path', None)
+            process_capture(region=region, custom_image_path=c_path)
+            if 'snip_region' in globals(): globals()['snip_region'] = None
+            if 'custom_annotate_path' in globals(): globals()['custom_annotate_path'] = None
+    except Exception as e:
+        print(f"Error in check_events: {e}")
+        messagebox.showerror("Error", f"เกิดข้อผิดพลาดระหว่างทำงาน:\n{e}")
+    finally:
+        if not stop_event.is_set():
+            overlay.after(100, check_events)
 
 create_overlay()
 

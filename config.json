@@ -1,0 +1,16 @@
+{
+    "monitor_num": 1,
+    "save_folder": "D:\\111Work\\1111111\\n8nXLineBot",
+    "save_filename": "TestReport_20261009_141202.docx",
+    "use_existing_word": false,
+    "existing_word_path": "",
+    "export_format": "Word",
+    "backup_images": true,
+    "hk_capture": "shift+s",
+    "hk_capture_region": "shift+d",
+    "hk_annotate": "shift+a",
+    "hk_major_next": "shift+right",
+    "hk_major_prev": "shift+left",
+    "hk_minor_next": "ctrl+right",
+    "hk_minor_prev": "ctrl+left"
+}
