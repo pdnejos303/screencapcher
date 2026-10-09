@@ -10,6 +10,10 @@ from tkinter import filedialog, messagebox
 
 import tkinter as tk
 import customtkinter as ctk
+try:
+    import pywinstyles
+except ImportError:
+    pywinstyles = None
 import shutil
 import keyboard
 import win32api
@@ -114,8 +118,8 @@ def run_setup_ui():
     
     app = ctk.CTk()
     app.title("Screenshot Overlay - Setup")
-    app.geometry("1000x650")
-    app.minsize(900, 600)
+    app.geometry("1000x580")
+    app.minsize(900, 500)
     
     # --- Modern Colors & Fonts ---
     COLOR_BG = "#0B0F19"
@@ -130,7 +134,7 @@ def run_setup_ui():
 
     app.update_idletasks()
     x = (app.winfo_screenwidth() // 2) - (1000 // 2)
-    y = (app.winfo_screenheight() // 2) - (650 // 2)
+    y = (app.winfo_screenheight() // 2) - (580 // 2)
     app.geometry(f"+{x}+{y}")
 
     # Header
@@ -143,9 +147,13 @@ def run_setup_ui():
     subtitle_lbl = ctk.CTkLabel(header_frame, text="ตั้งค่าหน้าจอและปุ่มลัดก่อนเริ่มการทำงาน", font=(FONT_FAMILY, 14), text_color=COLOR_TEXT_MUTED)
     subtitle_lbl.pack(side="left", padx=15, pady=6)
 
-    # Main Grid Container
+    # Footer (fixed at bottom so it never gets cut off)
+    bottom_frame = ctk.CTkFrame(app, fg_color="transparent")
+    bottom_frame.pack(side="bottom", fill="x", padx=40, pady=(10, 25))
+    
+    # Main Grid Container (fills remaining space)
     main_container = ctk.CTkFrame(app, fg_color="transparent")
-    main_container.pack(fill="both", expand=True, padx=40, pady=10)
+    main_container.pack(side="top", fill="both", expand=True, padx=40, pady=(0, 10))
 
     left_col = ctk.CTkFrame(main_container, fg_color="transparent")
     left_col.pack(side="left", fill="both", expand=True, padx=(0, 15))
@@ -313,9 +321,6 @@ def run_setup_ui():
     btn_hk_min_prev = create_hk_row(hk_scroll, "⬅️ ข้อย่อยก่อนหน้า (-0.1)", "hk_minor_prev")
 
     # --- Start Button ---
-    bottom_frame = ctk.CTkFrame(app, fg_color="transparent")
-    bottom_frame.pack(fill="x", padx=40, pady=(15, 30))
-    
     def on_start():
         global setup_done
         mon_num = selected_monitor_num.get()
@@ -351,8 +356,8 @@ def run_setup_ui():
         except: pass
         app.destroy()
 
-    btn_start = ctk.CTkButton(bottom_frame, text="🚀 เปิด Overlay เริ่มทำงาน", font=(FONT_FAMILY, 16, "bold"), height=55, corner_radius=12, fg_color=COLOR_ACCENT, hover_color=COLOR_ACCENT_HOVER, command=on_start)
-    btn_start.pack(fill="x")
+    btn_start = ctk.CTkButton(bottom_frame, text="🚀 เปิด Overlay เริ่มทำงาน", font=(FONT_FAMILY, 22, "bold"), height=65, corner_radius=15, fg_color="#10B981", hover_color="#059669", text_color="#FFFFFF", command=on_start)
+    btn_start.pack(fill="x", expand=True)
 
     app.mainloop()
 
@@ -459,7 +464,11 @@ def create_overlay():
     # หน้าต่างลอย ไร้ขอบ
     overlay.attributes("-topmost", True)
     overlay.overrideredirect(True)
-    overlay.attributes("-alpha", 0.95)
+    # ปรับความโปร่งใสให้มากขึ้นเป็น 0.85 (แบบ Glassmorphism)
+    overlay.attributes("-alpha", 0.85)
+    if pywinstyles:
+        try: pywinstyles.apply_style(overlay, "transparent")
+        except: pass
     overlay.configure(fg_color=COLOR_BG)
     
     # Outer Frame
@@ -610,7 +619,7 @@ def process_capture(region=None):
     global capture_count
 
     capture_count += 1
-    step = get_step_label()
+    step = overlay_entry_step.get().strip() if overlay_entry_step else "1.1"
     detail = entry_detail.get().strip() if entry_detail else ""
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -768,12 +777,39 @@ def start_snip():
     
     snip_win.focus_force()
 
+def update_step_value(major_diff=0, minor_diff=0):
+    if overlay_entry_step is None: return
+    current = overlay_entry_step.get().strip()
+    if re.match(r'^\d+\.\d+$', current):
+        parts = current.split('.')
+        maj = int(parts[0])
+        min_val = int(parts[1])
+        if major_diff != 0:
+            maj = max(1, maj + major_diff)
+            min_val = 1
+        if minor_diff != 0:
+            min_val = max(1, min_val + minor_diff)
+        new_val = f"{maj}.{min_val}"
+    else:
+        match = re.search(r'^(.*?)(\d+)$', current)
+        if match:
+            prefix = match.group(1)
+            num_str = match.group(2)
+            num = int(num_str)
+            diff = major_diff if major_diff != 0 else minor_diff
+            new_num = max(1, num + diff)
+            new_val = f"{prefix}{new_num:0{len(num_str)}d}"
+        else:
+            new_val = current
+            
+    overlay_entry_step.delete(0, "end")
+    overlay_entry_step.insert(0, new_val)
+
 def check_events():
-    # อัปเดตข้อความบน UI หากมีการเปลี่ยนข้อ
-    if step_changed_event.is_set():
-        step_changed_event.clear()
-        if overlay_label_step:
-            overlay_label_step.configure(text=f"{get_step_label()}")
+    while not step_queue.empty():
+        action, diff = step_queue.get()
+        if action == 'major': update_step_value(major_diff=diff)
+        elif action == 'minor': update_step_value(minor_diff=diff)
 
     if stop_event.is_set():
         try:
@@ -783,15 +819,16 @@ def check_events():
         os._exit(0)
         return
 
-    if capture_region_event.is_set():
+    if 'capture_region_event' in globals() and capture_region_event.is_set():
         capture_region_event.clear()
         start_snip()
 
     if capture_event.is_set():
         capture_event.clear()
-        global snip_region
-        process_capture(region=snip_region)
-        snip_region = None
+        region = globals().get('snip_region', None)
+        process_capture(region=region)
+        if 'snip_region' in globals():
+            globals()['snip_region'] = None
 
     overlay.after(100, check_events)
 
