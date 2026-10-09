@@ -85,6 +85,7 @@ settings = {
     "save_filename": f"TestReport_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
     "use_existing_word": False,
     "existing_word_path": "",
+    "export_format": "Word",
     "backup_images": True,
     "hk_capture": "shift+s",
     "hk_capture_region": "shift+d",
@@ -100,7 +101,7 @@ if os.path.exists(config_file):
     try:
         with open(config_file, "r", encoding="utf-8") as f:
             loaded = json.load(f)
-            for k in ["save_folder", "hk_capture", "hk_capture_region", "hk_annotate", "hk_major_next", "hk_major_prev", "hk_minor_next", "hk_minor_prev", "use_existing_word", "existing_word_path", "backup_images"]:
+            for k in ["save_folder", "hk_capture", "hk_capture_region", "hk_annotate", "hk_major_next", "hk_major_prev", "hk_minor_next", "hk_minor_prev", "use_existing_word", "existing_word_path", "export_format", "backup_images"]:
                 if k in loaded: settings[k] = loaded[k]
             if "save_filename" in loaded and loaded["save_filename"]:
                 settings["save_filename"] = loaded["save_filename"]
@@ -246,6 +247,14 @@ def run_setup_ui():
     entry_filename.pack(side="left", fill="x", expand=True)
     entry_filename.insert(0, settings["save_filename"])
 
+    global export_format_var
+    export_format_var = ctk.StringVar(value=settings.get("export_format", "Word"))
+    format_frame = ctk.CTkFrame(new_file_frame, fg_color="transparent")
+    format_frame.pack(fill="x", pady=(5, 10))
+    ctk.CTkLabel(format_frame, text="รูปแบบเอกสาร:", text_color=COLOR_TEXT_MUTED, font=(FONT_FAMILY, 13)).pack(side="left", padx=(0, 10))
+    seg_btn = ctk.CTkSegmentedButton(format_frame, values=["Word", "PDF"], variable=export_format_var, font=(FONT_FAMILY, 13, "bold"), selected_color=COLOR_ACCENT)
+    seg_btn.pack(side="left")
+
     # Existing File Frame
     
     
@@ -313,9 +322,20 @@ def run_setup_ui():
         settings["existing_word_path"] = ""
         settings["backup_images"] = backup_var.get()
         settings["save_folder"] = entry_folder.get()
+        
+        fmt = export_format_var.get()
+        settings["export_format"] = fmt
+        
         filename = entry_filename.get()
-        if not filename.endswith(".docx"):
+        if filename.endswith(".docx") or filename.endswith(".pdf"):
+            filename = filename[:-5] if filename.endswith(".docx") else filename[:-4]
+            
+        if fmt == "Word":
             filename += ".docx"
+        else:
+            filename += ".pdf"
+            settings["use_existing_word"] = False
+            
         settings["save_filename"] = filename
         
         setup_done = True
@@ -327,6 +347,7 @@ def run_setup_ui():
                     "save_filename": settings["save_filename"],
                     "use_existing_word": settings["use_existing_word"],
                     "existing_word_path": settings["existing_word_path"],
+                    "export_format": settings["export_format"],
                     "backup_images": settings["backup_images"],
                     "hk_capture": settings["hk_capture"],
                     "hk_capture_region": settings["hk_capture_region"],
@@ -356,30 +377,36 @@ full_save_path = os.path.join(settings["save_folder"], settings["save_filename"]
 # ════════════════════════════════════════════════════════════════
 # 3. เปิด Word
 # ════════════════════════════════════════════════════════════════
-try:
-    word = win32com.client.Dispatch("Word.Application")
-    word.Visible = True
-    
-    if settings.get("use_existing_word") and os.path.exists(settings.get("existing_word_path", "")):
-        doc = word.Documents.Open(settings["existing_word_path"])
-        sel = word.Selection
-        sel.EndKey(Unit=6) # wdStory
-        sel.TypeParagraph()
-        full_save_path = settings["existing_word_path"]
-    else:
-        doc = word.Documents.Add()
-        sel = word.Selection
-        sel.Font.Size = 20
-        sel.Font.Bold = True
-        sel.TypeText("Automation Screenshot Report\n")
-        sel.Font.Size = 11
-        sel.Font.Bold = False
-        sel.TypeParagraph()
-        full_save_path = os.path.join(settings["save_folder"], settings["save_filename"])
-        doc.SaveAs2(full_save_path)
-except Exception as e:
-    messagebox.showerror("Error", f"ไม่สามารถเปิด Microsoft Word ได้:\n{e}")
-    sys.exit(1)
+capture_history_pdf = []
+if settings.get("export_format", "Word") == "Word":
+    try:
+        word = win32com.client.Dispatch("Word.Application")
+        word.Visible = True
+        
+        if settings.get("use_existing_word") and os.path.exists(settings.get("existing_word_path", "")):
+            doc = word.Documents.Open(settings["existing_word_path"])
+            sel = word.Selection
+            sel.EndKey(Unit=6) # wdStory
+            sel.TypeParagraph()
+            full_save_path = settings["existing_word_path"]
+        else:
+            doc = word.Documents.Add()
+            sel = word.Selection
+            sel.Font.Size = 20
+            sel.Font.Bold = True
+            sel.TypeText("Automation Screenshot Report\n")
+            sel.Font.Size = 11
+            sel.Font.Bold = False
+            sel.TypeParagraph()
+            full_save_path = os.path.join(settings["save_folder"], settings["save_filename"])
+            doc.SaveAs2(full_save_path)
+    except Exception as e:
+        messagebox.showerror("Error", f"ไม่สามารถเปิด Microsoft Word ได้:\n{e}")
+        sys.exit(1)
+else:
+    word = None
+    doc = None
+    full_save_path = os.path.join(settings["save_folder"], settings["save_filename"])
 
 
 # ════════════════════════════════════════════════════════════════
@@ -602,6 +629,48 @@ def update_count(count):
 # ════════════════════════════════════════════════════════════════
 # 7. Capture Logic (Main Thread)
 # ════════════════════════════════════════════════════════════════
+
+def build_pdf():
+    try:
+        from fpdf import FPDF
+        pdf = FPDF()
+        font_path = r"C:\Windows\Fonts\tahoma.ttf"
+        has_thai_font = os.path.exists(font_path)
+        if has_thai_font:
+            pdf.add_font("Tahoma", "", font_path)
+            
+        for cap in capture_history_pdf:
+            pdf.add_page()
+            if has_thai_font: pdf.set_font("Tahoma", "", 14)
+            else: pdf.set_font("Arial", "", 14)
+            
+            pdf.set_text_color(153, 51, 0)
+            pdf.cell(200, 10, text=str(cap['step']), new_x="LMARGIN", new_y="NEXT")
+            
+            if cap['detail']:
+                pdf.set_text_color(102, 102, 102)
+                if has_thai_font: pdf.set_font("Tahoma", "", 11)
+                else: pdf.set_font("Arial", "", 11)
+                pdf.cell(200, 8, text=f"  {cap['detail']}", new_x="LMARGIN", new_y="NEXT")
+                
+            pdf.set_text_color(153, 153, 153)
+            if has_thai_font: pdf.set_font("Tahoma", "", 9)
+            else: pdf.set_font("Arial", "", 9)
+            pdf.cell(200, 6, text=f"  Captured at: {cap['timestamp']}", new_x="LMARGIN", new_y="NEXT")
+            
+            pdf.ln(5)
+            
+            with Image.open(cap["image"]) as img:
+                w, h = img.size
+            max_w = 190
+            max_h = 240
+            ratio = min(max_w / w, max_h / h)
+            pdf.image(cap['image'], w=w*ratio, h=h*ratio)
+            
+        pdf.output(full_save_path)
+    except Exception as e:
+        print("PDF Error:", e)
+
 def process_capture(region=None, custom_image_path=None):
     global capture_count
 
@@ -627,90 +696,100 @@ def process_capture(region=None, custom_image_path=None):
             shutil.copy(filename, b_filename)
         except: pass
 
-    try:
-        sel = word.Selection
-        sel.EndKey(Unit=6)
-        sel.TypeParagraph()
-
-        # หมายเลขข้อ
-        sel.Font.Size = 14
-        sel.Font.Bold = True
-        sel.Font.Color = 0x993300
-        sel.TypeText(f"{step}")
-        sel.Font.Bold = False
-        sel.Font.Color = 0
-        sel.TypeParagraph()
-
-        # รายละเอียด
-        if detail:
-            sel.Font.Size = 11
-            sel.Font.Italic = True
-            sel.Font.Color = 0x666666
-            sel.TypeText(f"  {detail}")
-            sel.Font.Italic = False
-            sel.Font.Color = 0
-            sel.TypeParagraph()
-
-        # เวลา
-        sel.Font.Size = 9
-        sel.Font.Color = 0x999999
-        sel.TypeText(f"  Captured at: {timestamp}")
-        sel.Font.Color = 0
-        sel.TypeParagraph()
-
-        # รูปภาพ
-        shape = sel.InlineShapes.AddPicture(FileName=filename, LinkToFile=False, SaveWithDocument=True)
-        if shape.Width > 450:
-            ratio = 450 / shape.Width
-            shape.Width = 450
-            shape.Height = int(shape.Height * ratio)
-
-        sel.TypeParagraph()
-        sel.Font.Size = 8
-        sel.Font.Color = 0xCCCCCC
-        sel.TypeText("─" * 25)
-        sel.Font.Color = 0
-        sel.TypeParagraph()
-
-        doc.Save()
-        update_count(capture_count)
-        
-        # --- Visual Feedback (Screen Flash) ---
+    is_pdf = settings.get("export_format", "Word") == "PDF"
+    
+    # Visual Feedback
+    def show_flash():
         if overlay:
             flash = ctk.CTkToplevel(overlay)
             flash.overrideredirect(True)
             flash.attributes("-topmost", True)
-            flash.attributes("-transparentcolor", "black") # Optional if we want shapes, but alpha is fine
-            
+            flash.attributes("-transparentcolor", "black")
             mon = settings["monitor"]
-            # Create a border flash instead of full screen to be less intrusive, or a quick full screen flash
             flash.geometry(f"{mon['width']}x{mon['height']}+{mon['left']}+{mon['top']}")
-            flash.configure(fg_color="#4ADE80") # Green flash
+            flash.configure(fg_color="#4ADE80")
             flash.attributes("-alpha", 0.3)
-            
-            # Label in the center
             lbl = ctk.CTkLabel(flash, text="📸 แคปเจอร์สำเร็จ!", font=("Segoe UI", 48, "bold"), text_color="white", fg_color="transparent")
             lbl.place(relx=0.5, rely=0.5, anchor="center")
-            
             def fade_out(alpha):
                 if alpha > 0:
                     flash.attributes("-alpha", alpha)
                     flash.after(30, fade_out, alpha - 0.05)
                 else:
                     flash.destroy()
-                    
             flash.after(50, fade_out, 0.3)
-        # ----------------------------------------
 
-        # ล้างช่องรายละเอียดหลังแคปเสร็จ (Optional: เพื่อให้พร้อมพิมพ์ข้อต่อไป)
+    if is_pdf:
+        # Save for PDF
+        img_path = filename
+        if settings.get("backup_images", False):
+            img_path = os.path.join(settings["save_folder"], "Backup_Images", f"Step_{step}_{capture_count}.png")
+        else:
+            pdf_temp_dir = os.path.join(current_dir, "_pdf_temp_images")
+            os.makedirs(pdf_temp_dir, exist_ok=True)
+            img_path = os.path.join(pdf_temp_dir, f"temp_pdf_{capture_count}.png")
+            import shutil
+            shutil.copy(filename, img_path)
+            
+        capture_history_pdf.append({
+            "step": step,
+            "detail": detail,
+            "timestamp": timestamp,
+            "image": img_path
+        })
+        build_pdf()
+        update_count(capture_count)
+        show_flash()
         if entry_detail:
             entry_detail.delete(0, "end")
-
-    except Exception as e:
-        pass
-
-    try: os.remove(filename)
-    except: pass
+        try: os.remove(filename)
+        except: pass
+    else:
+        # Word Logic
+        try:
+            sel = word.Selection
+            sel.EndKey(Unit=6)
+            sel.TypeParagraph()
+            sel.Font.Size = 14
+            sel.Font.Bold = True
+            sel.Font.Color = 0x993300
+            sel.TypeText(f"{step}")
+            sel.Font.Bold = False
+            sel.Font.Color = 0
+            sel.TypeParagraph()
+            if detail:
+                sel.Font.Size = 11
+                sel.Font.Italic = True
+                sel.Font.Color = 0x666666
+                sel.TypeText(f"  {detail}")
+                sel.Font.Italic = False
+                sel.Font.Color = 0
+                sel.TypeParagraph()
+            sel.Font.Size = 9
+            sel.Font.Color = 0x999999
+            sel.TypeText(f"  Captured at: {timestamp}")
+            sel.Font.Color = 0
+            sel.TypeParagraph()
+            shape = sel.InlineShapes.AddPicture(FileName=filename, LinkToFile=False, SaveWithDocument=True)
+            if shape.Width > 450:
+                ratio = 450 / shape.Width
+                shape.Width = 450
+                shape.Height = int(shape.Height * ratio)
+            sel.TypeParagraph()
+            sel.Font.Size = 8
+            sel.Font.Color = 0xCCCCCC
+            sel.TypeText("─" * 25)
+            sel.Font.Color = 0
+            sel.TypeParagraph()
+            doc.Save()
+            update_count(capture_count)
+            show_flash()
+            if entry_detail:
+                entry_detail.delete(0, "end")
+        except Exception as e:
+            pass
+        try: os.remove(filename)
+        except: pass
 
 
 def start_snip():
