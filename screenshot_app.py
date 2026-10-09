@@ -1,4 +1,4 @@
-﻿import datetime
+import datetime
 import json
 import os
 import sys
@@ -119,8 +119,8 @@ def run_setup_ui():
     
     app = ctk.CTk()
     app.title("Screenshot Overlay - Setup")
-    app.geometry("1050x700")
-    app.minsize(1050, 700)
+    app.geometry("1000x550")
+    app.minsize(900, 500)
     
     # --- Modern Colors & Fonts ---
     COLOR_BG = "#0B0F19"
@@ -152,15 +152,18 @@ def run_setup_ui():
     bottom_frame = ctk.CTkFrame(app, fg_color="transparent")
     bottom_frame.pack(side="bottom", fill="x", padx=40, pady=(10, 25))
     
-    # Main Grid Container (fills remaining space)
-    main_container = ctk.CTkFrame(app, fg_color="transparent")
-    main_container.pack(side="top", fill="both", expand=True, padx=40, pady=(0, 10))
+    # Main Grid Container (now a Master Scrollable Area)
+    main_container = ctk.CTkScrollableFrame(app, fg_color="transparent")
+    main_container.pack(side="top", fill="both", expand=True, padx=20, pady=(0, 10))
+    
+    inner_frame = ctk.CTkFrame(main_container, fg_color="transparent")
+    inner_frame.pack(fill="both", expand=True)
 
-    left_col = ctk.CTkFrame(main_container, fg_color="transparent")
-    left_col.pack(side="left", fill="both", expand=True, padx=(0, 15))
+    left_col = ctk.CTkFrame(inner_frame, fg_color="transparent")
+    left_col.pack(side="left", fill="both", expand=True, padx=(10, 15))
 
-    right_col = ctk.CTkFrame(main_container, fg_color="transparent")
-    right_col.pack(side="right", fill="both", expand=True, padx=(15, 0))
+    right_col = ctk.CTkFrame(inner_frame, fg_color="transparent")
+    right_col.pack(side="right", fill="both", expand=True, padx=(15, 10))
 
     # --- Section 1: หน้าจอ ---
     frame_mon = ctk.CTkFrame(left_col, corner_radius=16, fg_color=COLOR_CARD, border_width=1, border_color="#2E3C56")
@@ -171,7 +174,7 @@ def run_setup_ui():
     ctk.CTkLabel(mon_header, text="🖥️ เลือกหน้าจอ", font=(FONT_FAMILY, 18, "bold"), text_color=COLOR_TEXT).pack(anchor="w")
     ctk.CTkLabel(mon_header, text="ระบุหน้าจอที่ต้องการแคปเจอร์", font=(FONT_FAMILY, 12), text_color=COLOR_TEXT_MUTED).pack(anchor="w")
     
-    monitor_scroll = ctk.CTkScrollableFrame(frame_mon, fg_color="transparent")
+    monitor_scroll = ctk.CTkFrame(frame_mon, fg_color="transparent")
     monitor_scroll.pack(fill="both", expand=True, padx=15, pady=10)
 
     selected_monitor_num = ctk.IntVar(value=win_monitor_list[0]["win_num"])
@@ -209,8 +212,8 @@ def run_setup_ui():
     on_monitor_select(default_mon_num)
 
     # --- Section 2: ปลายทางไฟล์ (New/Existing) ---
-    frame_file = ctk.CTkFrame(right_col, corner_radius=16, fg_color=COLOR_CARD, border_width=1, border_color="#2E3C56")
-    frame_file.pack(fill="x", pady=(0, 20))
+    frame_file = ctk.CTkFrame(left_col, corner_radius=16, fg_color=COLOR_CARD, border_width=1, border_color="#2E3C56")
+    frame_file.pack(fill="x", pady=(15, 0))
     
     file_header = ctk.CTkFrame(frame_file, fg_color="transparent")
     file_header.pack(fill="x", padx=25, pady=(20, 5))
