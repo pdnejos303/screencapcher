@@ -1,4 +1,4 @@
-import datetime
+﻿import datetime
 import json
 import os
 import sys
@@ -87,7 +87,8 @@ settings = {
     "existing_word_path": "",
     "backup_images": True,
     "hk_capture": "shift+s",
-    "hk_capture_region": "ctrl+shift+s",
+    "hk_capture_region": "shift+d",
+    "hk_annotate": "shift+a",
     "hk_major_next": "shift+right",
     "hk_major_prev": "shift+left",
     "hk_minor_next": "ctrl+right",
@@ -99,7 +100,7 @@ if os.path.exists(config_file):
     try:
         with open(config_file, "r", encoding="utf-8") as f:
             loaded = json.load(f)
-            for k in ["save_folder", "hk_capture", "hk_capture_region", "hk_major_next", "hk_major_prev", "hk_minor_next", "hk_minor_prev", "use_existing_word", "existing_word_path", "backup_images"]:
+            for k in ["save_folder", "hk_capture", "hk_capture_region", "hk_annotate", "hk_major_next", "hk_major_prev", "hk_minor_next", "hk_minor_prev", "use_existing_word", "existing_word_path", "backup_images"]:
                 if k in loaded: settings[k] = loaded[k]
             if "save_filename" in loaded and loaded["save_filename"]:
                 settings["save_filename"] = loaded["save_filename"]
@@ -118,8 +119,8 @@ def run_setup_ui():
     
     app = ctk.CTk()
     app.title("Screenshot Overlay - Setup")
-    app.geometry("1000x580")
-    app.minsize(900, 500)
+    app.geometry("1050x700")
+    app.minsize(1050, 700)
     
     # --- Modern Colors & Fonts ---
     COLOR_BG = "#0B0F19"
@@ -134,7 +135,7 @@ def run_setup_ui():
 
     app.update_idletasks()
     x = (app.winfo_screenwidth() // 2) - (1000 // 2)
-    y = (app.winfo_screenheight() // 2) - (580 // 2)
+    y = (app.winfo_screenheight() // 2) - (700 // 2)
     app.geometry(f"+{x}+{y}")
 
     # Header
@@ -216,23 +217,13 @@ def run_setup_ui():
     ctk.CTkLabel(file_header, text="📁 ปลายทางเอกสาร (Word)", font=(FONT_FAMILY, 18, "bold"), text_color=COLOR_TEXT).pack(anchor="w")
     ctk.CTkLabel(file_header, text="เลือกสร้างไฟล์ใหม่ หรือใช้ Template เดิม", font=(FONT_FAMILY, 12), text_color=COLOR_TEXT_MUTED).pack(anchor="w")
     
-    radio_var = ctk.IntVar(value=1 if not settings.get("use_existing_word") else 2)
     
-    def on_radio_change():
-        if radio_var.get() == 1:
-            new_file_frame.pack(fill="x", padx=20, pady=5)
-            exist_file_frame.pack_forget()
-        else:
-            new_file_frame.pack_forget()
-            exist_file_frame.pack(fill="x", padx=20, pady=5)
 
-    radio_frame = ctk.CTkFrame(frame_file, fg_color="transparent")
-    radio_frame.pack(fill="x", padx=25, pady=(5, 5))
-    ctk.CTkRadioButton(radio_frame, text="สร้างไฟล์ใหม่", variable=radio_var, value=1, command=on_radio_change, font=(FONT_FAMILY, 13), fg_color=COLOR_ACCENT, hover_color=COLOR_ACCENT_HOVER).pack(side="left", padx=(0,20))
-    ctk.CTkRadioButton(radio_frame, text="ต่อท้ายไฟล์เดิม", variable=radio_var, value=2, command=on_radio_change, font=(FONT_FAMILY, 13), fg_color=COLOR_ACCENT, hover_color=COLOR_ACCENT_HOVER).pack(side="left")
+    
 
     # New File Frame
     new_file_frame = ctk.CTkFrame(frame_file, fg_color="transparent")
+    new_file_frame.pack(fill="x", padx=20, pady=5)
     folder_frame = ctk.CTkFrame(new_file_frame, fg_color="transparent")
     folder_frame.pack(fill="x", pady=5)
     entry_folder = ctk.CTkEntry(folder_frame, height=40, font=(FONT_FAMILY, 13), corner_radius=8, border_color="#2E3C56", fg_color="#0B0F19")
@@ -253,25 +244,12 @@ def run_setup_ui():
     entry_filename.insert(0, settings["save_filename"])
 
     # Existing File Frame
-    exist_file_frame = ctk.CTkFrame(frame_file, fg_color="transparent")
-    exist_folder_frame = ctk.CTkFrame(exist_file_frame, fg_color="transparent")
-    exist_folder_frame.pack(fill="x", pady=(5, 10))
-    entry_exist = ctk.CTkEntry(exist_folder_frame, height=40, font=(FONT_FAMILY, 13), corner_radius=8, border_color="#2E3C56", fg_color="#0B0F19", placeholder_text="เลือกไฟล์ Word (.docx)...")
-    entry_exist.pack(side="left", fill="x", expand=True, padx=(0, 10))
-    entry_exist.insert(0, settings.get("existing_word_path", ""))
-    def browse_exist():
-        f = filedialog.askopenfilename(filetypes=[("Word Documents", "*.docx;*.doc")])
-        if f:
-            entry_exist.delete(0, "end")
-            entry_exist.insert(0, f)
-    ctk.CTkButton(exist_folder_frame, text="เลือกไฟล์", width=100, height=40, corner_radius=8, fg_color="#2E3C56", hover_color="#3B4B68", font=(FONT_FAMILY, 13, "bold"), command=browse_exist).pack(side="left")
+    
     
     # Backup Checkbox
     backup_var = ctk.BooleanVar(value=settings.get("backup_images", True))
     chk = ctk.CTkCheckBox(frame_file, text="✅ สำรองไฟล์รูปภาพ (.png) ต้นฉบับใน Backup_Images", variable=backup_var, font=(FONT_FAMILY, 13), fg_color=COLOR_ACCENT, hover_color=COLOR_ACCENT_HOVER)
     chk.pack(anchor="w", padx=25, pady=(5, 20))
-
-    on_radio_change()
 
     # --- Section 3: Hotkeys ---
     frame_hk = ctk.CTkFrame(right_col, corner_radius=16, fg_color=COLOR_CARD, border_width=1, border_color="#2E3C56")
@@ -282,7 +260,7 @@ def run_setup_ui():
     ctk.CTkLabel(hk_header, text="⌨️ ตั้งค่าปุ่มลัด (Hotkeys)", font=(FONT_FAMILY, 18, "bold"), text_color=COLOR_TEXT).pack(anchor="w")
     ctk.CTkLabel(hk_header, text="คลิกที่ปุ่มแล้วกดปุ่มบนคีย์บอร์ดที่ต้องการ", font=(FONT_FAMILY, 12), text_color=COLOR_TEXT_MUTED).pack(anchor="w")
     
-    hk_scroll = ctk.CTkScrollableFrame(frame_hk, fg_color="transparent")
+    hk_scroll = ctk.CTkFrame(frame_hk, fg_color="transparent")
     hk_scroll.pack(fill="both", expand=True, padx=15, pady=5)
 
     def create_hk_row(parent, label_text, key_name):
@@ -314,7 +292,9 @@ def run_setup_ui():
         btn_hk.configure(command=listen_hotkey)
         return btn_hk
 
-    btn_hk_cap = create_hk_row(hk_scroll, "📸 แคปหน้าจอ", "hk_capture")
+    btn_hk_cap = create_hk_row(hk_scroll, "📸 แคปหน้าจอ (เต็มจอ)", "hk_capture")
+    btn_hk_cap_region = create_hk_row(hk_scroll, "✂️ แคป (เลือกพื้นที่)", "hk_capture_region")
+    btn_hk_annotate = create_hk_row(hk_scroll, "✏️ แคป (วาด/วง)", "hk_annotate")
     btn_hk_maj_next = create_hk_row(hk_scroll, "⬆️ ข้อหลักถัดไป (+1.0)", "hk_major_next")
     btn_hk_maj_prev = create_hk_row(hk_scroll, "⬇️ ข้อหลักก่อนหน้า (-1.0)", "hk_major_prev")
     btn_hk_min_next = create_hk_row(hk_scroll, "➡️ ข้อย่อยถัดไป (+0.1)", "hk_minor_next")
@@ -326,8 +306,8 @@ def run_setup_ui():
         mon_num = selected_monitor_num.get()
         settings["monitor"] = next(m for m in win_monitor_list if m["win_num"] == mon_num)
         
-        settings["use_existing_word"] = (radio_var.get() == 2)
-        settings["existing_word_path"] = entry_exist.get()
+        settings["use_existing_word"] = False
+        settings["existing_word_path"] = ""
         settings["backup_images"] = backup_var.get()
         settings["save_folder"] = entry_folder.get()
         filename = entry_filename.get()
@@ -347,6 +327,7 @@ def run_setup_ui():
                     "backup_images": settings["backup_images"],
                     "hk_capture": settings["hk_capture"],
                     "hk_capture_region": settings["hk_capture_region"],
+                    "hk_annotate": settings.get("hk_annotate", "shift+a"),
                     "hk_major_next": settings["hk_major_next"],
                     "hk_major_prev": settings["hk_major_prev"],
                     "hk_minor_next": settings["hk_minor_next"],
@@ -407,7 +388,10 @@ capture_count = 0
 step_queue = queue.Queue()
 capture_event = threading.Event()
 capture_region_event = threading.Event()
+capture_annotate_event = threading.Event()
 snip_active = False
+annotate_active = False
+custom_annotate_path = None
 snip_region = None
 stop_event = threading.Event()
 state_lock = threading.Lock()
@@ -427,7 +411,8 @@ def prev_major(): step_queue.put(('major', -1))
 
 try:
     keyboard.add_hotkey(settings["hk_capture"], on_capture)
-    keyboard.add_hotkey(settings.get("hk_capture_region", "ctrl+shift+s"), lambda: capture_region_event.set())
+    keyboard.add_hotkey(settings.get("hk_capture_region", "shift+d"), lambda: capture_region_event.set())
+    keyboard.add_hotkey(settings.get("hk_annotate", "shift+a"), lambda: capture_annotate_event.set())
     keyboard.add_hotkey("esc", on_stop)
     keyboard.add_hotkey(settings["hk_minor_next"], next_minor)
     keyboard.add_hotkey(settings["hk_minor_prev"], prev_minor)
@@ -464,11 +449,8 @@ def create_overlay():
     # หน้าต่างลอย ไร้ขอบ
     overlay.attributes("-topmost", True)
     overlay.overrideredirect(True)
-    # ปรับความโปร่งใสให้มากขึ้นเป็น 0.85 (แบบ Glassmorphism)
-    overlay.attributes("-alpha", 0.85)
-    if pywinstyles:
-        try: pywinstyles.apply_style(overlay, "transparent")
-        except: pass
+    overlay.attributes("-alpha", 1.0)
+    # Remove pywinstyles to ensure no weird transparent artifacts
     overlay.configure(fg_color=COLOR_BG)
     
     # Outer Frame
@@ -506,7 +488,9 @@ def create_overlay():
     lbl_title.bind("<Button-1>", on_drag_start)
     lbl_title.bind("<B1-Motion>", on_drag_motion)
     
-    def ui_close(): stop_event.set()
+    def ui_close():
+        import os
+        os._exit(0)
         
     btn_close = ctk.CTkButton(drag_bar, text="✕", width=30, height=30, corner_radius=8, fg_color="transparent", hover_color="#EF4444", text_color=COLOR_TEXT_MUTED, font=(FONT_FAMILY, 14, "bold"), command=ui_close)
     btn_close.pack(side="right", padx=5)
@@ -615,7 +599,7 @@ def update_count(count):
 # ════════════════════════════════════════════════════════════════
 # 7. Capture Logic (Main Thread)
 # ════════════════════════════════════════════════════════════════
-def process_capture(region=None):
+def process_capture(region=None, custom_image_path=None):
     global capture_count
 
     capture_count += 1
@@ -624,9 +608,13 @@ def process_capture(region=None):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     filename = os.path.join(current_dir, f"_temp_cap_{capture_count}.png")
-    target_region = region if region else monitor_to_capture
-    sct_img = sct.grab(target_region)
-    to_png(sct_img.rgb, sct_img.size, output=filename)
+    if custom_image_path:
+        import shutil
+        shutil.copy(custom_image_path, filename)
+    else:
+        target_region = region if region else monitor_to_capture
+        sct_img = sct.grab(target_region)
+        to_png(sct_img.rgb, sct_img.size, output=filename)
     
     if settings.get("backup_images", False):
         try:
@@ -777,6 +765,71 @@ def start_snip():
     
     snip_win.focus_force()
 
+
+def start_annotate():
+    global annotate_active, custom_annotate_path
+    if annotate_active: return
+    annotate_active = True
+    
+    mon = settings["monitor"]
+    filename = os.path.join(current_dir, f"_temp_annotate.png")
+    sct_img = sct.grab(mon)
+    to_png(sct_img.rgb, sct_img.size, output=filename)
+    
+    anno_win = tk.Toplevel(overlay)
+    anno_win.attributes("-topmost", True)
+    anno_win.overrideredirect(True)
+    anno_win.geometry(f"{mon['width']}x{mon['height']}+{mon['left']}+{mon['top']}")
+    
+    bg_img = Image.open(filename)
+    bg_photo = ImageTk.PhotoImage(bg_img)
+    draw_img = bg_img.copy()
+    draw_obj = ImageDraw.Draw(draw_img)
+    
+    canvas = tk.Canvas(anno_win, bg="black", highlightthickness=0, cursor="pencil")
+    canvas.pack(fill="both", expand=True)
+    canvas.create_image(0, 0, image=bg_photo, anchor="nw")
+    canvas.image = bg_photo
+    
+    draw_data = []
+    
+    def on_press(e):
+        draw_data.clear()
+        draw_data.append((e.x, e.y))
+        
+    def on_drag(e):
+        if draw_data:
+            x1, y1 = draw_data[-1]
+            x2, y2 = e.x, e.y
+            canvas.create_line(x1, y1, x2, y2, fill="red", width=4, capstyle=tk.ROUND, smooth=True)
+            draw_obj.line([x1, y1, x2, y2], fill="red", width=4)
+            draw_data.append((x2, y2))
+            
+    def on_done(e):
+        global annotate_active, custom_annotate_path
+        draw_img.save(filename)
+        anno_win.destroy()
+        annotate_active = False
+        custom_annotate_path = filename
+        capture_event.set()
+        
+    def on_cancel(e):
+        global annotate_active
+        anno_win.destroy()
+        annotate_active = False
+        try: os.remove(filename)
+        except: pass
+        
+    canvas.bind("<ButtonPress-1>", on_press)
+    canvas.bind("<B1-Motion>", on_drag)
+    anno_win.bind("<Return>", on_done)
+    anno_win.bind("<Escape>", on_cancel)
+    
+    lbl = tk.Label(anno_win, text="✏️ โหมดวาดเขียน: วาดบนหน้าจอ กด [Enter] เพื่อเซฟ หรือ กด [Esc] เพื่อยกเลิก", bg="#FBBF24", fg="black", font=("Segoe UI", 12, "bold"), padx=10, pady=5)
+    lbl.place(x=20, y=20)
+    
+    anno_win.focus_force()
+
 def update_step_value(major_diff=0, minor_diff=0):
     if overlay_entry_step is None: return
     current = overlay_entry_step.get().strip()
@@ -823,13 +876,21 @@ def check_events():
         capture_region_event.clear()
         start_snip()
 
+    if 'capture_annotate_event' in globals() and capture_annotate_event.is_set():
+        capture_annotate_event.clear()
+        start_annotate()
+
     if capture_event.is_set():
         capture_event.clear()
         region = globals().get('snip_region', None)
-        process_capture(region=region)
+        c_path = globals().get('custom_annotate_path', None)
+        process_capture(region=region, custom_image_path=c_path)
+        if 'snip_region' in globals(): globals()['snip_region'] = None
+        if 'custom_annotate_path' in globals(): globals()['custom_annotate_path'] = None
         if 'snip_region' in globals():
             globals()['snip_region'] = None
 
     overlay.after(100, check_events)
 
 create_overlay()
+
